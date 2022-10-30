@@ -73,7 +73,7 @@ struct sg_entity_t {
 
 struct sg_frame_t {
   int width, height;
-  void *buffer;
+  void *buffer, *background;
 };
 
 struct sg_scene_t {
@@ -86,12 +86,20 @@ struct sg_scene_t {
   uint8_t *font;
 };
 
+enum {
+  sg_image_aspect,
+  sg_image_zoom,
+  sg_image_scale,
+  sg_image_center,
+};
+
 void sg_frame_text(sg_scene_t *scene, int chr, int scale, int x, int y, int color); // (USED INTERNALLY) draws a char
 void sg_frame_draw(sg_scene_t *scene, sg_entity_t *entity, int x, int y, int mode); // (USED INTERNALLY) draws an entity to a framebuffer
 void sg_scene_init(sg_scene_t *scene, const char *frame_format);                    // initializes a new scene, with a given frame file format
 void sg_scene_save(sg_scene_t *scene, int mode);                                    // (USED INTERNALLY) saves the current frame
 void sg_scene_wait(sg_scene_t *scene, int cents);                                   // waits for some cents, without animating the pending entities
 void sg_scene_animate(sg_scene_t *scene, int cents, int smooth, int mode);          // as sg_scene_wait, but lerping to a new state on all entities
+void sg_scene_image(sg_scene_t *scene, const char *image_path, int mode);           // sets a scene's background image
 void sg_entity_push(sg_entity_t *group, sg_entity_t *entity);                       // pushes an entity to the group
 void sg_entity_pop(sg_entity_t *group, sg_entity_t *entity);                        // pops an entity from a group
 void sg_entity_lerp(sg_entity_t *entity, float lerp);                               // (USED INTERNALLY) recursively sets the lerp level

@@ -187,19 +187,22 @@ void sg_scene_init(sg_scene_t *scene, const char *frame_format) {
   
   scene->frame.width = SG_WIDTH * SG_SCALE_X;
   scene->frame.height = SG_HEIGHT * SG_SCALE_Y;
-  scene->frame.buffer = malloc(scene->frame.width * scene->frame.height * 3);
   
-  scene->root = sg_entity_group(0, 0, SG_WIDTH, SG_HEIGHT, 0);
+  scene->frame.buffer = malloc(scene->frame.width * scene->frame.height * 3);
+  scene->frame.background = calloc(scene->frame.width * scene->frame.height * 3, 1);
+  
+  scene->root = sg_entity_group(0, 0, SG_WIDTH, SG_HEIGHT, -1);
   
   int x, y, n;
   scene->font = stbi_load("font.png", &x, &y, &n, 1);
 }
 
 void sg_scene_save(sg_scene_t *scene, int mode) {
+  memcpy(scene->frame.buffer, scene->frame.background, scene->frame.width * scene->frame.height * 3);
   sg_frame_draw(scene, &(scene->root), 0, 0, mode);
   
   char buffer[256];
-  sprintf(buffer, scene->frame_format, scene->frames++, ".bmp");
+  sprintf(buffer, scene->frame_format, scene->frames++, "bmp");
   
   stbi_write_bmp(buffer, scene->frame.width, scene->frame.height, 3, scene->frame.buffer);
   printf("saved frame %s\n", buffer);
@@ -231,6 +234,83 @@ void sg_scene_animate(sg_scene_t *scene, int cents, int smooth, int mode) {
   }
   
   sg_entity_update(&(scene->root));
+}
+
+void sg_scene_image(sg_scene_t *scene, const char *image_path, int mode) {
+  int width, height, n;
+  void *buffer = stbi_load(image_path, &width, &height, &n, 3);
+  
+  if (mode == sg_image_aspect) {
+    if ((float)(width) / (float)(height) > (float)(scene->frame.width) / (float)(scene->frame.height)) {
+      int new_height = ((float)(height) / (float)(width)) * (float)(scene->frame.width);
+      int start_y = (scene->frame.height - new_height) / 2;
+      
+      for (int y = 0; y < new_height; y++) {
+        for (int x = 0; x < scene->frame.width; x++) {
+          int pixel_x = (x * width) / scene->frame.width;
+          int pixel_y = (y * height) / new_height;
+          
+          uint32_t *source_data = (uint32_t *)(buffer + (pixel_x + pixel_y * width) * 3);
+          uint32_t *dest_data = (uint32_t *)(scene->frame.background + (x + (y + start_y) * scene->frame.width) * 3);
+          
+          *dest_data = (*dest_data & 0xFF000000) | (*source_data & 0x00FFFFFF);
+        }
+      }
+    } else {
+      int new_width = ((float)(width) / (float)(height)) * (float)(scene->frame.height);
+      int start_x = (scene->frame.width - new_width) / 2;
+      
+      for (int y = 0; y < scene->frame.height; y++) {
+        for (int x = 0; x < new_width; x++) {
+          int pixel_x = (x * width) / new_width;
+          int pixel_y = (y * height) / scene->frame.height;
+          
+          uint32_t *source_data = (uint32_t *)(buffer + (pixel_x + pixel_y * width) * 3);
+          uint32_t *dest_data = (uint32_t *)(scene->frame.background + (x + start_x + y * scene->frame.width) * 3);
+          
+          *dest_data = (*dest_data & 0xFF000000) | (*source_data & 0x00FFFFFF);
+        }
+      }
+    }
+  } else if (mode == sg_image_zoom) {
+    if ((float)(width) / (float)(height) > (float)(scene->frame.width) / (float)(scene->frame.height)) {
+      int new_width = ((float)(width) / (float)(height)) * (float)(scene->frame.height);
+      int start_x = (scene->frame.width - new_width) / 2;
+      
+      for (int y = 0; y < scene->frame.height; y++) {
+        for (int x = 0; x < new_width; x++) {
+          if (x + start_x < 0 || x + start_x >= scene->frame.width) continue;
+          
+          int pixel_x = (x * width) / new_width;
+          int pixel_y = (y * height) / scene->frame.height;
+          
+          uint32_t *source_data = (uint32_t *)(buffer + (pixel_x + pixel_y * width) * 3);
+          uint32_t *dest_data = (uint32_t *)(scene->frame.background + (x + start_x + y * scene->frame.width) * 3);
+          
+          *dest_data = (*dest_data & 0xFF000000) | (*source_data & 0x00FFFFFF);
+        }
+      }
+    } else {
+      int new_height = ((float)(height) / (float)(width)) * (float)(scene->frame.width);
+      int start_y = (scene->frame.height - new_height) / 2;
+      
+      for (int y = 0; y < new_height; y++) {
+        for (int x = 0; x < scene->frame.width; x++) {
+          if (y + start_y < 0 || y + start_y >= scene->frame.height) continue;
+          
+          int pixel_x = (x * width) / scene->frame.width;
+          int pixel_y = (y * height) / new_height;
+          
+          uint32_t *source_data = (uint32_t *)(buffer + (pixel_x + pixel_y * width) * 3);
+          uint32_t *dest_data = (uint32_t *)(scene->frame.background + (x + (y + start_y) * scene->frame.width) * 3);
+          
+          *dest_data = (*dest_data & 0xFF000000) | (*source_data & 0x00FFFFFF);
+        }
+      }
+    }
+  }
+  
+  stbi_image_free(buffer);
 }
 
 void sg_entity_push(sg_entity_t *group, sg_entity_t *entity) {
@@ -278,6 +358,10 @@ void sg_entity_update(sg_entity_t *entity) {
 }
 
 sg_entity_t sg_entity_text(const char *text, int text_scale, int underline, int x, int y, int width, int height, int fore_color, int back_color) {
+  if (width < 0) {
+    width = strlen(text) * text_scale;
+  }
+  
   sg_entity_t entity = (sg_entity_t){
     .type = sg_type_text,
     .text_scale = text_scale,

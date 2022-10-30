@@ -1,3 +1,5 @@
 render
 output
 output.mp4
+*.png
+render.c
